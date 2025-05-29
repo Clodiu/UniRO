@@ -3,12 +3,17 @@ package com.example.uniro;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.content.Intent;
+import android.graphics.drawable.AnimationDrawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.SearchView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -16,6 +21,11 @@ import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -24,22 +34,88 @@ import com.google.firebase.firestore.FirebaseFirestoreException;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.Objects;
+
 public class UniversityListActivity extends AppCompatActivity {
 
     private Button resendCode;
     private TextView verifyMsg;
     private FirebaseAuth fAuth;
     private FirebaseFirestore fStore;
-    private TextView name, email;
     private String userID;
+    RecyclerView recyclerView;
+    DatabaseReference database;
+    UniversityAdapter universityAdapter;
+    ArrayList<University> list;
+    SearchView searchView;
+
+    private TextView userNameView;
+    private TextView userEmailView;
+    private ConstraintLayout drawer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_university_list);
 
-        name = findViewById(R.id.txtName);
-        email = findViewById(R.id.txtEmail);
+        ConstraintLayout constraintLayout = findViewById(R.id.layout);
+        AnimationDrawable animationDrawable = (AnimationDrawable) constraintLayout.getBackground();
+        animationDrawable.setEnterFadeDuration(200);
+        animationDrawable.setExitFadeDuration(4000);
+        animationDrawable.start();
+
+        ///setting the recycler view
+
+        userNameView = findViewById(R.id.userNameView);
+        userEmailView = findViewById(R.id.userEmailView);
+        drawer = findViewById(R.id.drawer);
+
+        recyclerView = findViewById(R.id.universityList);
+        searchView = findViewById(R.id.searchView);
+        database = FirebaseDatabase.getInstance().getReference("university");
+        recyclerView.setHasFixedSize(true);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        list = new ArrayList<>();
+        universityAdapter = new UniversityAdapter(this, list);
+        recyclerView.setAdapter(universityAdapter);
+
+        database.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull @NotNull DataSnapshot snapshot) {
+
+                for(DataSnapshot dataSnapshot : snapshot.getChildren()){
+                    University university = dataSnapshot.getValue(University.class);
+                    list.add(university);
+                }
+                universityAdapter.notifyDataSetChanged();
+                if(searchView != null){
+                    searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+                        @Override
+                        public boolean onQueryTextSubmit(String query) {
+                            return false;
+                        }
+
+                        @Override
+                        public boolean onQueryTextChange(String newText) {
+                            search(newText);
+                            return false;
+                        }
+                    });
+                }
+
+            }
+
+            @Override
+            public void onCancelled(@NonNull @NotNull DatabaseError error) {
+
+            }
+        });
+
+
+
+
 
         resendCode = findViewById(R.id.verifyNowButton);
         verifyMsg = findViewById(R.id.emailNotVerified);
@@ -55,9 +131,16 @@ public class UniversityListActivity extends AppCompatActivity {
                 if (error!=null){
                         Log.d("tag","Error:"+error.getMessage());
                 }else {
-                        name.setText(value.getString("name"));
-                        email.setText(value.getString("email"));
+                        Toast.makeText(getApplicationContext(), "Hello, " + value.getString("name"),Toast.LENGTH_SHORT).show();
                 }
+
+                if(value != null)
+                {
+                    userNameView.setText(Objects.requireNonNull(value.get("name")).toString());
+                    userEmailView.setText(Objects.requireNonNull(value.get("email")).toString());
+                }
+
+
                 
             }
         });
@@ -93,5 +176,35 @@ public class UniversityListActivity extends AppCompatActivity {
         fAuth.signOut();
         startActivity(new Intent(UniversityListActivity.this, MainActivity.class));
         finish();
+    }
+
+    private void search(String str){
+        ArrayList<University> myList = new ArrayList<>();
+        for(University object : list){
+            if(object.getName().toLowerCase().contains(str.toLowerCase())){
+               myList.add(object);
+            }
+        }
+        UniversityAdapter myAdapter = new UniversityAdapter(this,myList);
+        recyclerView.setAdapter(myAdapter);
+    }
+
+
+    public void openDrawer(View view) {
+
+        if(drawer.getVisibility() == View.VISIBLE){
+
+            drawer.setVisibility(View.GONE);
+
+        }else {
+
+            drawer.setVisibility(View.VISIBLE);
+
+        }
+
+    }
+
+    public void openInfo(View view) {
+        startActivity(new Intent(UniversityListActivity.this, AppInfoActivity.class));
     }
 }
